@@ -1283,6 +1283,21 @@ class ExporterReviewMov(ExporterReview):
         product_name = self.instance.data["productName"]
         self._temp_nodes[product_name] = []
 
+        # Look for audio file from AudioRead node
+        audio_file_path = None
+        try:
+            # Search for AudioRead nodes in the script
+            for node in nuke.allNodes():
+                if node.Class() == "AudioRead":
+                    audio_file_path = node["file"].value()
+                    self.log.info(f"Found AudioRead node: {node.name()}")
+                    self.log.info(f"Audio file path: {audio_file_path}")
+                    break
+            if audio_file_path:
+                self.log.debug(f"Will attach audio file to review MOV: {audio_file_path}")
+        except Exception as e:
+            self.log.warning(f"Failed to search for AudioRead nodes: {e}")
+
         # Read node
         r_node = nuke.createNode("Read")
         r_node["file"].setValue(self.path_in)
@@ -1422,6 +1437,14 @@ class ExporterReviewMov(ExporterReview):
             write_node["mov64_write_timecode"].setValue(1)
         except Exception:
             self.log.info("`mov64_write_timecode` knob was not found")
+
+        # Attach audio file if found
+        if audio_file_path:
+            try:
+                write_node["mov64_audiofile"].setValue(audio_file_path)
+                self.log.info(f"Set audio file on Write node: {audio_file_path}")
+            except Exception as e:
+                self.log.warning(f"Failed to set mov64_audiofile knob: {e}")
 
         write_node["raw"].setValue(1)
 

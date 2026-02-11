@@ -1512,10 +1512,15 @@ class WorkfileSettings(object):
             imageio_nuke (dict): nuke colorspace configurations
 
         '''
+        # Determine correct monitor output knob based on Nuke version
+        # Nuke 14+: monitorOutOutputTransform
+        # Nuke 13: monitorOutLUT
+        monitor_out_knob = "monitorOutOutputTransform" if nuke.NUKE_VERSION_MAJOR >= 14 else "monitorOutLUT"
+
         filter_knobs = [
             "viewerProcess",
             "wipe_position",
-            "monitorOutOutputTransform"
+            monitor_out_knob
         ]
         viewer_process = get_formatted_display_and_view(
             imageio_nuke["viewer"], self.formatting_data, self._root_node
@@ -1526,7 +1531,10 @@ class WorkfileSettings(object):
         erased_viewers = []
         for v in nuke.allNodes(filter="Viewer"):
             # set viewProcess to preset from settings
-            v["viewerProcess"].setValue(viewer_process)
+            try:
+                v["viewerProcess"].setValue(viewer_process)
+            except Exception as e:
+                log.warning(f"Failed to set viewerProcess on Viewer: {e}")
 
             if viewer_process not in v["viewerProcess"].value():
                 copy_inputs = v.dependencies()
@@ -1551,8 +1559,16 @@ class WorkfileSettings(object):
                     nv[knob_name].setValue(knob_value)
 
                 # set viewerProcess
-                nv["viewerProcess"].setValue(viewer_process)
-                nv["monitorOutOutputTransform"].setValue(output_transform)
+                try:
+                    nv["viewerProcess"].setValue(viewer_process)
+                except Exception as e:
+                    log.warning(f"Failed to set viewerProcess on new Viewer: {e}")
+
+                # set monitor output (knob name differs by Nuke version)
+                try:
+                    nv[monitor_out_knob].setValue(output_transform)
+                except Exception as e:
+                    log.warning(f"Failed to set {monitor_out_knob} on Viewer: {e}")
 
         if erased_viewers:
             log.warning(
