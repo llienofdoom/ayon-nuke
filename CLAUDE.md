@@ -129,25 +129,25 @@ The addon registers `.nk` as the Nuke workfile extension format.
 
 This addon follows **Luma Studios Semantic Versioning** for forked ynput addons:
 
-**Format**: `{upstream_version}-ls.{luma_patch}`
+**Format**: `{upstream_version}+ls.{luma_major}.{luma_minor}.{luma_patch}`
 
-**Example**: `0.3.0-ls.0.1`
-- `0.3.0` - Base ynput version (stays in sync with upstream)
-- `-ls.0.1` - Luma Studios patch version
+**Example**: `0.4.8+ls.0.1.0`
+- `0.4.8` - Base ynput version (stays in sync with upstream)
+- `+ls.0.1.0` - Luma Studios version
   - `ls` = Luma Studios identifier
-  - First number: minor (features/breaking changes)
-  - Second number: patch (bug fixes)
-
-**Important**: Use hyphen `-` instead of `+` (Docker tags don't support `+`)
+  - First number: major (architectural/breaking Luma change)
+  - Second number: minor (new features, upstream sync)
+  - Third number: patch (bug fixes)
 
 **Version Update Locations** (update ALL when versioning):
 1. `package.py` - Main version declaration
-2. `client/ayon_nuke/__init__.py` - Client version
+2. `client/ayon_nuke/version.py` - Client version (`__init__.py` re-exports from here)
 
 **Bump Guidelines**:
-- Bug fixes: `0.3.0-ls.0.1` → `0.3.0-ls.0.2`
-- New features/breaking: `0.3.0-ls.0.2` → `0.3.0-ls.1.0`
-- Upstream sync: `0.3.0-ls.1.0` → `0.3.1-ls.0.1` (reset LS patch)
+- Bug fix: `0.4.8+ls.0.1.0` → `0.4.8+ls.0.1.1`
+- New feature: `0.4.8+ls.0.1.1` → `0.4.8+ls.0.2.0`
+- Major Luma change: `0.4.8+ls.0.2.0` → `0.4.8+ls.1.0.0`
+- Upstream sync: `0.4.8+ls.0.1.0` → `0.4.9+ls.0.2.0` (new base, increment minor, reset patch)
 
 ## Development Workflow
 

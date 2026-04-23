@@ -1,6 +1,6 @@
 name = "nuke"
 title = "Nuke"
-version = "0.4.0+ls.0.0.1"
+version = "0.4.8+ls.0.1.0"
 app_host_name = "nuke"
 client_dir = "ayon_nuke"
 project_can_override_addon_version = True
