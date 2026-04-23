@@ -206,6 +206,31 @@ Fixed viewer colorspace setting to work across Nuke versions:
 - Line 1523: Filter knobs uses dynamic variable
 - Line 1569: Setting uses dynamic knob name with error handling
 
+### Python Version Compatibility (Upstream Sync Risk)
+
+Nuke's embedded Python may be older than the Python version used by upstream developers. When merging upstream changes, watch for syntax that requires Python 3.8+:
+
+**Walrus operator (`:=`)** — introduced in Python 3.8, causes `SyntaxError` on older Nuke versions:
+```python
+# Upstream may write (Python 3.8+ only):
+if knob := node.knob(key):
+    do_something(knob)
+
+# Replace with (compatible with all versions):
+knob = node.knob(key)
+if knob:
+    do_something(knob)
+```
+
+**Known affected file**: `client/ayon_nuke/api/workfile_template_builder.py` — upstream introduced walrus operators in this file (v0.4.8). Fixed in `0.4.8+ls.0.1.1`.
+
+**Rule**: When syncing upstream, grep for `:=` across all changed Python files and replace with equivalent two-line form. The two-line form is semantically identical and works on all Python versions. There is no way to support both syntaxes in the same file — walrus operator errors are `SyntaxError`s caught before any code runs, so `try/except` and version guards cannot help.
+
+```bash
+# Check for walrus operators after an upstream merge:
+grep -rn ":=" client/
+```
+
 ## Commit Conventions
 
 Follow **semantic commit format**:
