@@ -35,6 +35,14 @@ class NukeAddon(AYONAddon, IHostAddon):
         env.pop("TCL_LIBRARY", None)
 
         # Add vendor to PYTHONPATH
+        # NOTE (Luma): vendor/ is inserted at the FRONT of PYTHONPATH so its
+        # packages shadow the AYON launcher's bundled dependencies. This is how
+        # we ship urllib3 1.26.x to Nuke 13 (Python 3.7.7): the launcher (AYON
+        # 1.6.x) bundles urllib3 2.x, whose exceptions.py evaluates `tuple[...]`
+        # at import time (PEP 585), which only works on Python 3.9+ and raises
+        # `TypeError: 'type' object is not subscriptable` on 3.7. urllib3 1.26.x
+        # is pure-Python and supports 3.6-3.12, so this is safe on Nuke 14+ too.
+        # Do NOT remove vendor/urllib3 on upstream sync. See ayon-nuke/CLAUDE.md.
         python_path = env["PYTHONPATH"]
         python_path_parts = []
         if python_path:

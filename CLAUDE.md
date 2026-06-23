@@ -231,6 +231,92 @@ if knob:
 grep -rn ":=" client/
 ```
 
+### Launcher urllib3 vs Nuke 13 / Python 3.7 (Vendored Shadow)
+
+The AYON desktop launcher (1.6.x) injects its own bundled dependencies
+(`app\AYON <ver>\dependencies\…`: `ayon_api`, `requests`, `urllib3`, …) onto the
+DCC's `PYTHONPATH`. The launcher bundles **urllib3 2.x**, whose
+`urllib3/exceptions.py` evaluates `tuple[...]` at import time (PEP 585 builtin
+generics). That runtime subscript only works on **Python 3.9+** and raises
+`TypeError: 'type' object is not subscriptable` on Nuke 13's **Python 3.7.7**:
+
+```
+File "...\AYON 1.6.2\dependencies\urllib3\exceptions.py", line 26, in <module>
+    _TYPE_REDUCE_RESULT = tuple[typing.Callable[..., object], tuple[object, ...]]
+TypeError: 'type' object is not subscriptable
+```
+
+`requests` imports fine on 3.7 — `urllib3` 2.x is the first incompatibility in
+the chain. (The launcher's bundled `ayon_api` has a *second* 3.7 problem behind
+it — see the next section.)
+
+**Fix (shipped in `0.4.10+ls.0.2.1`)**: vendor **urllib3 1.26.20** (last 1.26
+release; pure-Python, supports 3.6–3.12) at `client/ayon_nuke/vendor/urllib3/`.
+`addon.py:add_implementation_envs()` already inserts `vendor/` at the front of
+`PYTHONPATH`, so Nuke imports the vendored 1.26.20 instead of the launcher's
+2.x. Modern `requests` officially supports urllib3 `>=1.21.1,<3`, and 1.26.20
+runs on Nuke 14+/Python 3.9+ too, so the shadow is safe across all Nuke versions.
+
+**Rules**:
+- Do NOT delete `client/ayon_nuke/vendor/urllib3/` on upstream sync. The vendor
+  insert in `addon.py` is the mechanism that keeps Nuke 13 working.
+- Bumping the launcher forward will NOT fix this — newer launchers ship the same
+  or newer urllib3. The only real alternative is moving the workstation to
+  **Nuke 14+ (Python 3.9)**, which makes this whole class of problem disappear.
+- If a *different* launcher dependency later breaks on 3.7, vendor a
+  3.7-compatible version of that package the same way (front of `PYTHONPATH`).
+
+```bash
+# Verify the shadow won, inside Nuke 13's Script Editor:
+#   import urllib3; print(urllib3.__version__, urllib3.__file__)
+# Expect 1.26.20 resolved from the addon's vendor/ path.
+```
+
+### Launcher ayon_api `typing.Literal` vs Nuke 13 / Python 3.7 (Typing Backfill)
+
+Once the urllib3 shadow is in place, the next failure surfaces inside the
+launcher's bundled `ayon_api`:
+
+```
+File "...\AYON 1.6.2\dependencies\ayon_api\server_api.py", line 20, in <module>
+    from typing import Optional, Iterable, Generator, Any, Union, Literal
+ImportError: cannot import name 'Literal' from 'typing'
+```
+
+`typing.Literal` was added in **Python 3.8**; Nuke 13's 3.7 lacks it. Crucially
+this is an `ImportError`, not a `SyntaxError` — the bundled module *compiles*
+cleanly on 3.7 (Python compiles a whole module before running any line), so it
+only needs the missing `typing` names to **exist at import time**.
+
+**Fix (shipped in `0.4.10+ls.0.2.3`; first attempted in `0.2.2`)**:
+- Vendor **typing_extensions 4.7.1** (last release supporting 3.7) at
+  `client/ayon_nuke/vendor/typing_extensions.py`.
+- An **inline** block at the very top of `client/ayon_nuke/startup/init.py`
+  backfills every 3.8+ name from `typing_extensions` onto the `typing` module
+  (`Literal`, `Protocol`, `TypedDict`, `Final`, …). No-op on Python 3.8+.
+
+**Critical gotcha (why it must be inline, not a module):** `0.2.2` first tried
+`from ayon_nuke import _py37_compat`. That fails — importing anything from the
+`ayon_nuke` package runs `ayon_nuke/__init__.py` → `.addon` → `ayon_core` →
+`ayon_api` *first*, hitting the exact `Literal` error before the shim runs. The
+patch therefore lives inline at the top of `init.py` and imports only top-level
+modules (`typing`, vendored `typing_extensions`) — it must never trigger an
+`ayon_nuke` package import. `init.py` runs first because `add_implementation_envs`
+puts the addon's `startup/` dir at the front of `NUKE_PATH`.
+
+**Rules**:
+- Keep the typing-backfill block inline and FIRST in `startup/init.py` (before
+  the `ayon_core` import). Do NOT refactor it into an `ayon_nuke` submodule. Do
+  NOT delete `client/ayon_nuke/vendor/typing_extensions.py`.
+- This backfills missing *names* (ImportError fixes only). If a future bundled
+  `ayon_api` introduces 3.8+ *syntax* (walrus `:=`, `dict[str]` runtime
+  subscripts, positional-only `/`), those are `SyntaxError`s that compile-fail
+  and CANNOT be patched at runtime — at that point the only options are to
+  shadow `ayon_api` with an older 3.7-compatible release, or move to Nuke 14+.
+- The clean long-term fix for this whole class of problem remains **Nuke 14+
+  (Python 3.9)**.
+
+
 ## Commit Conventions
 
 Follow **semantic commit format**:
