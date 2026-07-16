@@ -35,7 +35,6 @@ from .lib import (
     INSTANCE_DATA_KNOB,
     Knobby,
     create_backdrop,
-    deprecated,
     maintained_selection,
     get_avalon_knob_data,
     set_node_knobs_from_settings,
@@ -586,12 +585,6 @@ def get_instance_group_node_children(instance):
     return node.nodes()
 
 
-# alias for backwards compatibility
-@deprecated("ayon_nuke.api.plugin.get_instance_group_node_children")
-def get_instance_group_node_childs(instance):
-    return get_instance_group_node_children(instance)
-
-
 def get_colorspace_from_node(node):
     # Add version data to instance
     colorspace = node["colorspace"].value()
@@ -880,7 +873,7 @@ class NukeGroupLoader(LoaderPlugin):
             "source",
             "fps"
         ]:
-            data[k] = version_attributes[k]
+            data[k] = version_attributes.get(k)
 
         for key, value in dict(**data).items():
             if value is None:
@@ -1311,6 +1304,10 @@ class ExporterReviewMov(ExporterReview):
         # Read node
         r_node = nuke.createNode("Read")
         r_node["file"].setValue(self.path_in)
+        # do not use the localized files when publishing,
+        # use the original files, because Nuke may think the
+        # cached localized files are still up-to-date and use them
+        r_node["localizationPolicy"].setValue(3)
         r_node["first"].setValue(self.first_frame)
         r_node["origfirst"].setValue(self.first_frame)
         r_node["last"].setValue(self.last_frame)
@@ -1325,7 +1322,6 @@ class ExporterReviewMov(ExporterReview):
 
         if read_raw:
             r_node["raw"].setValue(1)
-
         # connect to Read node
         self._shift_to_previous_node_and_temp(
             product_name, r_node, "Read...   `{}`"
